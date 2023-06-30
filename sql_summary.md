@@ -1,6 +1,6 @@
 # ACME_Sales_Analysis_2019
 
-### Overall sales performance for 2019 
+## Overall sales performance for 2019 
 
 ```sql
 -- Total Revenue
@@ -33,7 +33,7 @@ FROM acme_sales.acme_combined_sales_2019
 |  $          184.52 |
 
 
-### Product Analysis
+## Product Analysis
 
 #### Product Sales Breakdown
 
@@ -45,7 +45,7 @@ SELECT
     SUM(`Quantity Ordered`) AS 'Total Quantity Ordered'
 FROM acme_sales.acme_combined_sales_2019
 GROUP BY Product 
-ORDER BY CASE
+ORDER BY CASE -- Since the output of 'Total Revenue' is a text, we use a CASE WHEN clause to convert each value to SIGNED (64-bit integer) and then order DESC.
 	WHEN SUM(`Price Each` * `Quantity Ordered`) >= 0 THEN CAST(SUM(`Price Each` * `Quantity Ordered`) AS SIGNED) ELSE NULL 
     END DESC;
 ```
@@ -72,6 +72,8 @@ ORDER BY CASE
 | AA Batteries (4-pack)      |  $          106,042   |  $         3.84 |         27,615         |
 | AAA Batteries (4-pack)     |  $             92,648 |  $         2.99 |         30,986         |
 
+The Company's top three products which generated the most revenue included the Macbook Pro Laptop, iPhone, and ThinkPad Laptop. Combined, these products represented approximately 50% of the Company's total sales.
+
 #### Complementary Product Analysis
 
 ```sql
@@ -79,13 +81,15 @@ SELECT
     Product,
     COUNT(*) as Frequency
 FROM acme_sales.acme_combined_sales_2019
+-- from the subquery, we pull all individual products related to each 'Order Id' and rank how often each item has been purchased with another item in a single order.
 WHERE `Order Id` IN 
+    -- The subquery below is a table of all distinct rows that contain a duplicate 'Order Id,' which represents all IDs with multiple products purchased in a single order. 
 	(SELECT 
 		`Order Id`
 	FROM acme_sales.acme_combined_sales_2019
 	GROUP BY `Order Id` 
 	HAVING COUNT(*) > 1
-	)
+	) 
 GROUP BY
 	Product
 ORDER BY 
@@ -116,17 +120,23 @@ ORDER BY
 
 The table above summarizes items how frequently a product was purchased under a duplicate order_id, identifying a cross-sell. Based on this data, the top 5 cross-selling products under the average product price of $185 were USB-C Charging Cables, Lightning Charging Cables, Wired Headphones, Apple Airpods Headphones, and Bose SoundSport Headphones.  
 
-### Price Analysis & Seasonality
+#### Recommendations: 
+* The Company should consider brick & mortar strategies which focus on complementary sales of charging cables and headphones. 
+* The Company can also consider introducing complementary products such as desktops and speakers which can potentially improve cross-sales for monitors and TVs, respectively.
+
+## Price Analysis & Seasonality
 
 #### Price Analysis: 
 
 ```sql
 SELECT
-    temp.`Price Range`,
+    temp.`Price Range`, 
 	temp.`# of Product Categories`,
-    SUM(`Quantity Ordered` * `Price Each`) as 'Total Revenue',
-    SUM(`Quantity Ordered`) as 'Total Quantity Ordered'
+    SUM(`Quantity Ordered` * `Price Each`) as 'Total Revenue', 
+    SUM(`Quantity Ordered`) as 'Total Quantity Ordered' 
 FROM (
+
+    -- created a temp table that sorts the data into 5 groups of prices ranges. Count each distinct product within each price range. 
     SELECT
         CASE
             WHEN `Price Each` < 49.99 THEN '$0-$49.99'
@@ -138,8 +148,12 @@ FROM (
         COUNT(DISTINCT Product) as `# of Product Categories`
     FROM acme_sales.acme_combined_sales_2019
     GROUP BY `Price Range`
-) as temp
-JOIN acme_sales.acme_combined_sales_2019 AS main ON temp.`Price Range` =
+) as temp 
+
+
+-- use a JOIN clause to join the schema with the temporary table by price ranges defined in the temporary table subquery. 
+JOIN acme_sales.acme_combined_sales_2019 AS main ON temp.`Price Range` = 
+
     (CASE
         WHEN main.`Price Each` < 49.99 THEN '$0-$49.99'
         WHEN main.`Price Each` BETWEEN 50 AND 149.99 THEN '$50-$149.99'
@@ -153,16 +167,23 @@ ORDER BY `Total Revenue`;
 
 | Price Range  | \# of Product Categories | Total Revenue       | Total Quantity Ordered |
 | ------------ | ------------------------ | ------------------- | ---------------------- |
-| $0-$49.99    | 5                        |           1,077,124 |         126,225        |
-| $50-$149.99  | 3                        |           2,927,759 |           25,097       |
-| over $1,000  | 1                        |           8,032,500 |             4,725      |
-| $150-$499.99 | 5                        |           9,402,696 |           34,949       |
 | $500-$999.99 | 5                        |         13,025,459  |           17,816       |
+| $150-$499.99 | 5                        |           9,402,696 |           34,949       |
+| over $1,000  | 1                        |           8,032,500 |             4,725      |
+| $50-$149.99  | 3                        |           2,927,759 |           25,097       |
+| $0-$49.99    | 5                        |           1,077,124 |         126,225        |
+
+Products within the price range $500-$999.99 generated the most revenue at $13 million. 
+
+#### Recommendations: 
+* The Company should continue focusing on the price range of $500 - $999.99, and strategize around the top performing products within this segment (i.e. sales, cross-selling opportunities).
+* Investigated the opportunities in higher-end products priced over $1,000. Although this segment did not generate the highest revenue, it does have potential since only one product (Macbook Pro) was able to generate the sales of this segment. An opportunity exists to sell similar high-end, reputable products to increase the revenue/profitability/volume in this segment.  
 
 #### Seasonality Analysis:
 
 ```sql
 SELECT
+    -- Since 'Order Date' is in text, we use a CASE WHEN and assign each number to the corresponding month. 
 	CASE 
 		WHEN Left(`Order Date`, 2) = 1 THEN 'January'
         WHEN Left(`Order Date`, 2) = 2 THEN 'February'
@@ -201,7 +222,14 @@ ORDER BY
 | 11 | November  |  $      3,197,875 |         19,769         |
 | 12 | December  |  $      4,608,296 |         28,074         |
 
-### Geographic Sales
+* The Company saw a significant lift in sales in Winter Q4 (Oct-Dec) and slightly in Spring Q2 (April-June).
+
+#### Recommendations: 
+* Capitalize on high selling months including April, October, December. Allocate marketing and promotional resources to maximize sales during these months.
+* Similarly, for periods with relatively lower revenue such as January, February, August and September, allocate marketing and promotional resources to mitigate the seasonal dip in these months.
+* Although inventory data is not included, it is worth pointing out regardless that inventory management during peak seasonal periods is critical. 
+
+## Geographic Sales
 
 ```sql
 SELECT
@@ -222,6 +250,10 @@ ORDER BY STATE ASC;
 | OR    |  $       1,870,011  |
 | TX    |  $       4,583,418  |
 | WA    |  $       2,745,046  |
+
+#### Recommendations: 
+* Capitalize on high-revenue states including California, New York, and Texas by exploring market expansion opportunities and strengthening presence in these states (i.e. logistics, customer service, etc.).
+* Investigate lower-revenue states such as Maine and Oregon for customer preferences, competition, etc.
 
 
 
